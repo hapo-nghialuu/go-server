@@ -52,11 +52,7 @@ func main() {
 
 		log.Println("Handling events...")
 		for _, event := range cb.Events {
-			log.Printf("\n\n")
 			log.Printf("/ callback called %+v...\n", event)
-			log.Printf("\n\n")
-
-			// log.Printf("/callback called %+v...\n", event.(source))
 
 			switch e := event.(type) {
 			case webhook.MessageEvent:
@@ -66,8 +62,6 @@ func main() {
 				case webhook.TextMessageContent:
 					if message.Text == "連携する" {
 						log.Printf("Initiating link token process.")
-						log.Printf("channelToken. %+v \n", channelToken)
-						log.Printf("userId. %+v \n", userId)
 
 						// Phát hành linkToken
 						linkToken, err := getLinkToken(channelToken, userId)
