@@ -76,8 +76,18 @@ func main() {
 							&messaging_api.ReplyMessageRequest{
 								ReplyToken: e.ReplyToken,
 								Messages: []messaging_api.MessageInterface{
-									messaging_api.TextMessage{
-										Text: loginURL,
+									&messaging_api.TemplateMessage{
+										AltText: "Buttons template",
+										Template: &messaging_api.ButtonsTemplate{
+											Title: "アカウント連携開始",
+											Text: "連携を開始します。リンク先でログイン\nを行なってください。",
+											Actions: []messaging_api.ActionInterface{
+												&messaging_api.UriAction{
+													Label: "連携開始",
+													Uri: loginURL,
+												},
+											},
+										},
 									},
 								},
 							},
@@ -87,7 +97,19 @@ func main() {
 							log.Println("Sent linkToken reply.")
 						}
 					} else {
-						replyMessage := "あなたは" + message.Text + "と言いました。"
+						replyMessage := ""
+						if message.Text == "連携解除" {
+							err := requestUnlinkAccount(channelToken, userId)
+							if err != nil {
+								replyMessage = "連携解除が失敗しました。"
+								log.Print(err)
+							} else {
+								replyMessage = "連携解除が完了しました。"
+								log.Println("Unlink account successfully")
+							}
+						} else {
+							replyMessage = "あなたは" + message.Text + "と言いました。"
+						}
 						if _, err = bot.ReplyMessage(
 							&messaging_api.ReplyMessageRequest{
 								ReplyToken: e.ReplyToken,
@@ -105,6 +127,46 @@ func main() {
 					}
 				default:
 					log.Printf("Unsupported message content: %T\n", message)
+				}
+			case webhook.AccountLinkEvent:
+				result := e.Link.Result
+				log.Print(result)
+				switch result {
+					case "ok":
+						replyMessage := "アカウント連携が完了しました。"
+						if _, err = bot.ReplyMessage(
+							&messaging_api.ReplyMessageRequest{
+								ReplyToken: e.ReplyToken,
+								Messages: []messaging_api.MessageInterface{
+									messaging_api.TextMessage{
+										Text: replyMessage,
+									},
+								},
+							},
+						); err != nil {
+							log.Print(err)
+						} else {
+							log.Println("Sent text reply.")
+						}
+					case "failed":
+						replyMessage := "アカウント連携が失敗しました。"
+						if _, err = bot.ReplyMessage(
+							&messaging_api.ReplyMessageRequest{
+								ReplyToken: e.ReplyToken,
+								Messages: []messaging_api.MessageInterface{
+									messaging_api.TextMessage{
+										Text: replyMessage,
+									},
+								},
+							},
+						); err != nil {
+							log.Print(err)
+						} else {
+							log.Println("Sent text reply.")
+						}
+					default: {
+						log.Printf("User verification fails")
+					}
 				}
 			default:
 				log.Printf("Unsupported event type: %T\n", event)
@@ -161,4 +223,29 @@ func getLinkToken(channelToken, userID string) (string, error) {
 	}
 
 	return result.LinkToken, nil
+}
+
+func requestUnlinkAccount(channelToken string, userID string) error {
+	url := fmt.Sprintf("https://api.line.me/v2/bot/user/%s/richmenu", userID)
+
+	req, err := http.NewRequest("DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+channelToken)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	log.Print(resp.Body)
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to unlink account: %s", resp.Status)
+	}
+
+	return nil
 }
